@@ -12,9 +12,10 @@ namespace LiberatingMarsCLI
     {
         public static byte[] AESKey = new byte[32];
         public static byte[] AESIV = new byte[16];
-        public static byte[] AesCryptBytes(byte[] data, bool encrypt)
+        public static byte[] AesCryptBytes(byte[] data, bool encrypt, String chituLocation)
         {
             PullCrypto crypto = new PullCrypto();
+            crypto.pullCrypto(chituLocation);
 
             AESKey = crypto.AESKey;
             AESIV = crypto.AESIV;

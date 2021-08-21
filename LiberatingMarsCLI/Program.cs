@@ -1,6 +1,7 @@
 ﻿using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 
 namespace LiberatingMarsCLI
 {
@@ -10,9 +11,9 @@ namespace LiberatingMarsCLI
         static byte[] ctbContent = null;
         static String ctbLocation = null;
 
-        static bool isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
-        static bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
-        static bool isMac = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        public static bool isWindows = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Windows);
+        public static bool isLinux = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
+        public static bool isMac = System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
         
         static DirectoryInfo tempDir = Directory.CreateDirectory(Path.GetTempPath() + "/LiberatingMars");
         static String headerTempLoc = tempDir + "/Mars3Temp.ctb";
@@ -24,13 +25,16 @@ namespace LiberatingMarsCLI
         static OldLayers oldLay = new OldLayers();
         static NewLayers newLay = new NewLayers();
 
+        static PullCrypto crypto = new PullCrypto();
+        static AES aes = new AES();
+
         public static String chituLocation;
 
         public static void Main(string[] args)
         {
             chituLocation = args[0];
 
-            Console.WriteLine("> LiberatingMars CLI v0.1 <");
+            Console.WriteLine("\n> LiberatingMars CLI v0.1 <");
             if (isWindows)
                 Console.WriteLine("> Detected OS: Windows <");
             else if (isLinux)
@@ -57,7 +61,6 @@ namespace LiberatingMarsCLI
             MemoryStream ms = new MemoryStream(ctbContent);
             BinaryReader binRead = new BinaryReader(ms);
 
-            //Old Header
             oldH.Magic = binRead.ReadUInt32();
             oldH.Version = binRead.ReadUInt32();
 
@@ -91,7 +94,6 @@ namespace LiberatingMarsCLI
             oldH.SlicerOffset = binRead.ReadUInt32();
             oldH.SlicerSize = binRead.ReadUInt32();
 
-            //Preview
             oldH.pResolutionX = binRead.ReadUInt32();
             oldH.pResolutionY = binRead.ReadUInt32();
             oldH.pImageOffset = binRead.ReadUInt32();
@@ -116,7 +118,6 @@ namespace LiberatingMarsCLI
             oldH.pData2 = new byte[oldH.pImageLength2];
             oldH.pData2 = binRead.ReadBytes((int)oldH.pImageLength2);
 
-            //Print Parameters
             oldH.ppBottomLiftHeight = binRead.ReadSingle();
             oldH.ppBottomLiftSpeed = binRead.ReadSingle();
             oldH.ppLiftHeight = binRead.ReadSingle();
@@ -134,7 +135,6 @@ namespace LiberatingMarsCLI
             oldH.ppPadding3 = binRead.ReadUInt32();
             oldH.ppPadding4 = binRead.ReadUInt32();
 
-            //Slicer Info
             oldH.sBottomLiftDistance2 = binRead.ReadSingle();
             oldH.sBottomLiftSpeed2 = binRead.ReadSingle();
             oldH.sLiftHeight2 = binRead.ReadSingle();
@@ -233,12 +233,11 @@ namespace LiberatingMarsCLI
             newH.unknown24 = 0x101;
             newH.unknown25 = 0x4;
             newH.LayerCount = oldH.LayerCount - 1;
-            newH.unknown26 = new uint[4] { 0, 0, 0, 0 }; // [4]
+            newH.unknown26 = new uint[4];
             newH.DisclaimerOffset = 0x29285;
             newH.DisclaimerSize = 0x140;
-            newH.padding = new uint[4] { 0, 0, 0, 0 }; // [4]
+            newH.padding = new uint[4];
 
-            //Preview
             newH.pResolutionX = oldH.pResolutionX;
             newH.pResolutionY = oldH.pResolutionY;
             newH.pImageOffset = 0x160;
@@ -356,9 +355,8 @@ namespace LiberatingMarsCLI
 
             binWrite.BaseStream.Position = newH.PrinterNameOffset;
 
-            const string machinename = "ELEGOO MARS 3";
-            char[] MachineName = new char[newH.PrinterNameSize];
-            MachineName = machinename.ToCharArray();
+            binRead.BaseStream.Position = oldH.sMachineNameAddress;
+            char[] MachineName = binRead.ReadChars((int)newH.PrinterNameSize);
             binWrite.Write(MachineName);
 
             const string disclaimer = "Layout and record format for the ctb and cbddlp file types are the copyrighted programs or codes of CBD Technology (China) Inc..The Customer or User shall not in any manner reproduce, distribute, modify, decompile, disassemble, decrypt, extract, reverse engineer, lease, assign, or sublicense the said programs or codes.";
@@ -367,6 +365,7 @@ namespace LiberatingMarsCLI
             binWrite.Write(Disclaimer);
 
             binWrite.Close();
+            binRead.Close();
 
             translateLayers();
         }
@@ -499,21 +498,48 @@ namespace LiberatingMarsCLI
 
         public static void sign()
         {
-            
+            crypto.pullCrypto(chituLocation);
+            byte[] signature = new byte[newH.SignatureSize];
+            BinaryReader read = new BinaryReader(File.Open(headerTempLoc, FileMode.Open));
+            read.BaseStream.Position = 0x30;
+            SHA256 hash = SHA256.Create();
+
+            byte[] first8Bytes = new byte[8];
+            byte[] hashed8Bytes = new byte[8];
+            first8Bytes = read.ReadBytes(8);
+            hashed8Bytes = hash.ComputeHash(first8Bytes);
+            read.Close();
+
+            byte[] encryptedHashed = new byte[8];
+            var EncHash = AES.AesCryptBytes(hashed8Bytes, true, chituLocation);
+            encryptedHashed = EncHash;
+
+            BinaryWriter write = new BinaryWriter(File.Open(headerTempLoc, FileMode.Append));
+            write.Write(encryptedHashed);
+            write.Close();
         }
 
         public static void encrypt()
         {
-            PullCrypto crypto = new PullCrypto();
-            AES aes = new AES();
-
             crypto.pullCrypto(chituLocation);
-            Console.WriteLine(BitConverter.ToString(crypto.AESKey).Replace("-", ""));
+            BinaryReader read = new BinaryReader(File.Open(headerTempLoc, FileMode.Open));
+            read.BaseStream.Position = newH.HeaderOffset;
+            byte[] header = new byte[newH.HeaderSize];
+            byte[] encHeader = new byte[newH.HeaderSize];
+            header = read.ReadBytes((int)newH.HeaderSize);
+            encHeader = AES.AesCryptBytes(header, true, chituLocation);
+            read.Close();
+
+            BinaryWriter write = new BinaryWriter(File.Open(headerTempLoc, FileMode.Open));
+            write.BaseStream.Position = newH.HeaderOffset;
+            write.Write(encHeader);
+            write.Close();
         }
 
         public static void save()
         {
-
+            File.Copy(headerTempLoc, ctbLocation.Replace(".ctb", "_MARS3.ctb"), true);
+            Console.WriteLine("> File saved at: " + ctbLocation.Replace(".ctb", "_MARS3.ctb") + " <");
         }
     }
 }
