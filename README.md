@@ -5,7 +5,7 @@
 LiberatingMarsCLI(.exe) [path to ChiTuBox 1.9.0] [path to legacy CTBv2 file]
 
 ### Output:
-<legacy CTBv2 file name>_MARS3.ctb
+[legacy CTBv2 file name]_MARS3.ctb
 
 - LiberatingMarsCLI will switch to CTBv3 input once available.
 - Layer specific settings and TSMC are not implemented yet.
