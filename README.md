@@ -2,7 +2,7 @@
 **We don't want to be forced into which Slicer we use. Let's change that.**
 
 ### Usage:
-LiberatingMarsCLI(.exe) <path to ChiTuBox 1.9.0> <path to legacy CTBv2 file>
+LiberatingMarsCLI(.exe) [path to ChiTuBox 1.9.0] [path to legacy CTBv2 file]
 
 ### Output:
 <legacy CTBv2 file name>_MARS3.ctb
