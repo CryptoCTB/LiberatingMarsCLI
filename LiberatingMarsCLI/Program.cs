@@ -36,7 +36,7 @@ namespace LiberatingMarsCLI
         {
             chituLocation = args[0];
 
-            Console.WriteLine("\n> LiberatingMars CLI v0.1 <");
+            Console.WriteLine("\n> LiberatingMars CLI v0.2 <");
             if (isWindows)
                 Console.WriteLine("> Detected OS: Windows <");
             else if (isLinux)
