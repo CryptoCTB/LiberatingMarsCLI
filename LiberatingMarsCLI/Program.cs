@@ -18,6 +18,8 @@ namespace LiberatingMarsCLI
         static DirectoryInfo tempDir = Directory.CreateDirectory(Path.GetTempPath() + "/LiberatingMars");
         static String headerTempLoc = tempDir + "/Mars3Temp.ctb";
         static long oldHeaderFinalPos = 0;
+        static long disclaimerOffPos = 0;
+        static long disclaimerPos = 0;
 
         static OldHeader oldH = new OldHeader();
         static NewHeader newH = new NewHeader();
@@ -335,7 +337,9 @@ namespace LiberatingMarsCLI
             binWrite.Write(newH.LayerCount);
             for (int i = 0; i < newH.unknown26.Length; i++)
                 binWrite.Write(newH.unknown26[i]);
-            binWrite.Write(newH.DisclaimerOffset);
+
+            disclaimerOffPos = binWrite.BaseStream.Position;
+            binWrite.Write(0);
             binWrite.Write(newH.DisclaimerSize);
             for (int j = 0; j < 4; j++)
                 binWrite.Write(newH.padding[j]);
@@ -359,10 +363,15 @@ namespace LiberatingMarsCLI
             char[] MachineName = binRead.ReadChars((int)newH.PrinterNameSize);
             binWrite.Write(MachineName);
 
+            disclaimerPos = binWrite.BaseStream.Position;
+
             const string disclaimer = "Layout and record format for the ctb and cbddlp file types are the copyrighted programs or codes of CBD Technology (China) Inc..The Customer or User shall not in any manner reproduce, distribute, modify, decompile, disassemble, decrypt, extract, reverse engineer, lease, assign, or sublicense the said programs or codes.";
             char[] Disclaimer = new char[0x140];
             Disclaimer = disclaimer.ToCharArray();
             binWrite.Write(Disclaimer);
+
+            binWrite.BaseStream.Position = disclaimerOffPos;
+            binWrite.Write((int)disclaimerPos);
 
             binWrite.Close();
             binRead.Close();
@@ -431,8 +440,16 @@ namespace LiberatingMarsCLI
                 newLay.unknown3 = 0;
                 newLay.EncryptedDataOffset = 0;
                 newLay.EncryptedDataLength = 0;
-                newLay.LiftDistance = oldH.ppLiftHeight;
-                newLay.LiftSpeed = oldH.ppLiftSpeed;
+                if (i < oldH.BottomLayersCount)
+                {
+                    newLay.LiftDistance = oldH.ppLiftHeight;
+                    newLay.LiftSpeed = oldH.ppLiftSpeed;
+                }
+                else
+                {
+                    newLay.LiftDistance = oldH.ppBottomLiftHeight;
+                    newLay.LiftSpeed = oldH.ppBottomLiftSpeed;
+                }
                 newLay.LiftDistance2 = 0;
                 newLay.LiftSpeed2 = 0;
                 newLay.RetractSpeed = oldH.ppRetractSpeed;
