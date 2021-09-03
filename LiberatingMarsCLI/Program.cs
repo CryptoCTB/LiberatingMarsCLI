@@ -440,7 +440,7 @@ namespace LiberatingMarsCLI
                 newLay.unknown3 = 0;
                 newLay.EncryptedDataOffset = 0;
                 newLay.EncryptedDataLength = 0;
-                if (i < oldH.BottomLayersCount)
+                if (i > oldH.BottomLayersCount)
                 {
                     newLay.LiftDistance = oldH.ppLiftHeight;
                     newLay.LiftSpeed = oldH.ppLiftSpeed;
