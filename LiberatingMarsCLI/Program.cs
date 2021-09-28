@@ -36,7 +36,7 @@ namespace LiberatingMarsCLI
         {
             chituLocation = args[0];
 
-            Console.WriteLine("\n> LiberatingMars CLI v0.2 <");
+            Console.WriteLine("\n> LiberatingMars CLI v0.3 <");
             if (isWindows)
                 Console.WriteLine("> Detected OS: Windows <");
             else if (isLinux)
@@ -65,6 +65,8 @@ namespace LiberatingMarsCLI
 
             oldH.Magic = binRead.ReadUInt32();
             oldH.Version = binRead.ReadUInt32();
+            if (oldH.Version > 3)
+                skip();
 
             oldH.BedSizeX = binRead.ReadSingle();
             oldH.BedSizeY = binRead.ReadSingle();
@@ -508,16 +510,24 @@ namespace LiberatingMarsCLI
 
         public static void saveNewCtb()
         {
-            sign();
-            encrypt();
-            save();
+            sign(false);
+            encrypt(false);
+            save(false);
         }
 
-        public static void sign()
+        public static void sign(bool skip)
         {
             crypto.pullCrypto(chituLocation);
             byte[] signature = new byte[newH.SignatureSize];
-            BinaryReader read = new BinaryReader(File.Open(headerTempLoc, FileMode.Open));
+            String loc;
+
+            if (skip)
+                loc = ctbLocation;
+            else
+                loc = headerTempLoc;
+
+            BinaryReader read = new(File.Open(loc, FileMode.Open));
+
             read.BaseStream.Position = 0x30;
             SHA256 hash = SHA256.Create();
 
@@ -531,15 +541,22 @@ namespace LiberatingMarsCLI
             var EncHash = AES.AesCryptBytes(hashed8Bytes, true, chituLocation);
             encryptedHashed = EncHash;
 
-            BinaryWriter write = new BinaryWriter(File.Open(headerTempLoc, FileMode.Append));
+            BinaryWriter write = new BinaryWriter(File.Open(loc, FileMode.Append));
             write.Write(encryptedHashed);
             write.Close();
         }
 
-        public static void encrypt()
+        public static void encrypt(bool skip)
         {
+            String loc;
+
+            if (skip)
+                loc = ctbLocation;
+            else
+                loc = headerTempLoc;
+
             crypto.pullCrypto(chituLocation);
-            BinaryReader read = new BinaryReader(File.Open(headerTempLoc, FileMode.Open));
+            BinaryReader read = new BinaryReader(File.Open(loc, FileMode.Open));
             read.BaseStream.Position = newH.HeaderOffset;
             byte[] header = new byte[newH.HeaderSize];
             byte[] encHeader = new byte[newH.HeaderSize];
@@ -547,16 +564,30 @@ namespace LiberatingMarsCLI
             encHeader = AES.AesCryptBytes(header, true, chituLocation);
             read.Close();
 
-            BinaryWriter write = new BinaryWriter(File.Open(headerTempLoc, FileMode.Open));
+            BinaryWriter write = new BinaryWriter(File.Open(loc, FileMode.Open));
             write.BaseStream.Position = newH.HeaderOffset;
             write.Write(encHeader);
             write.Close();
         }
 
-        public static void save()
+        public static void save(bool skip)
         {
-            File.Copy(headerTempLoc, ctbLocation.Replace(".ctb", "_MARS3.ctb"), true);
+            String loc;
+
+            if (skip)
+                loc = ctbLocation;
+            else
+                loc = headerTempLoc;
+
+            File.Copy(loc, ctbLocation.Replace(".ctb", "_MARS3.ctb"), true);
             Console.WriteLine("> File saved at: " + ctbLocation.Replace(".ctb", "_MARS3.ctb") + " <");
+        }
+
+        public static void skip()
+        {
+            sign(true);
+            encrypt(true);
+            save(true);
         }
     }
 }
